@@ -1,0 +1,28 @@
+# RedAgent lab — isolated tool + target containers.
+# STUB (Month 1, Week 1). Bring up with:
+#   docker-compose -f lab/docker-compose.yml up
+#
+# The target subnet must have NO route to the public internet (see SECURITY.md).
+# TODO: pin images, add an internal-only network, wire Metasploit XMLRPC + DVWA.
+
+version: "3.9"
+
+networks:
+  labnet:
+    internal: true   # no outbound internet from the lab network
+
+services:
+  # --- Intentionally vulnerable targets ---
+  dvwa:
+    image: vulnerables/web-dvwa
+    networks: [labnet]
+
+  # metasploitable:            # TODO: add Metasploitable target
+  #   image: tleemcjr/metasploitable2
+  #   networks: [labnet]
+
+  # --- Metasploit RPC (Month 2, Week 5) ---
+  # msf:
+  #   image: metasploitframework/metasploit-framework
+  #   command: ./msfrpcd -P redagent -S -a 0.0.0.0
+  #   networks: [labnet]

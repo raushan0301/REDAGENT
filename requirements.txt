@@ -1,0 +1,25 @@
+# RedAgent backend dependencies (skeleton — pin versions as you build).
+
+# Agent
+langgraph
+langchain
+langchain-core
+langchain-groq
+langchain-ollama
+
+# Backend
+fastapi
+uvicorn[standard]
+websockets
+pydantic>=2
+
+# Database
+psycopg[binary]
+
+# RAG
+chromadb
+sentence-transformers
+requests
+
+# Reports
+reportlab

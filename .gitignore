@@ -1,0 +1,36 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# RAG persistent store (~2-3 GB, rebuildable)
+chroma_db/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / dashboard
+node_modules/
+dashboard/dist/
+dashboard/.vite/
+
+# Reports / artifacts
+reports/out/
+*.pdf
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Terraform
+lab/terraform/.terraform/
+*.tfstate
+*.tfstate.*
