@@ -1,0 +1,4 @@
+{"template-id":"apache-detect","info":{"name":"Apache Server Detection","severity":"info"},"type":"http","host":"http://10.0.0.5","matched-at":"http://10.0.0.5"}
+{"template-id":"CVE-2021-41773","info":{"name":"Apache 2.4.49 Path Traversal","severity":"critical","classification":{"cve-id":["CVE-2021-41773"],"cvss-score":9.8,"cvss-metrics":"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},"type":"http","host":"http://10.0.0.5","matched-at":"http://10.0.0.5/cgi-bin/.%2e/etc/passwd"}
+this is a stray non-json banner line that must be skipped
+{"template-id":"tomcat-manager","info":{"name":"Tomcat Manager Exposed","severity":"high","classification":{"cve-id":[],"cvss-score":"7.5"}},"type":"http","host":"http://10.0.0.5","matched-at":"http://10.0.0.5/manager/html"}
