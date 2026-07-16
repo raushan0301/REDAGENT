@@ -1,24 +1,46 @@
 # RedAgent Dashboard
 
-Operator dashboard — React 19 + shadcn/ui. Talks to the FastAPI backend over
-WebSocket for the live reasoning stream and findings feed.
+Operator dashboard — React 19 + Vite + Tailwind + shadcn/ui-style components.
+Talks to the FastAPI backend over REST + WebSocket for the live findings feed and
+engagement status stream.
 
-## Panels (Month 1 Week 4 → Month 2 Week 7)
-
-- Target input + scope management (add/remove/list; server re-validates)
-- Live attack-chain visualization (recon → scan → exploit graph)
-- Agent reasoning stream (chain-of-thought as it happens)
-- Findings feed (live vulnerability list)
-- Session history
-- One-click PDF report export
-
-## Scaffold (not yet created)
+## Run
 
 ```bash
-npm create vite@latest . -- --template react-ts
-npx shadcn@latest init
-npm run dev
+npm install
+npm run dev            # http://localhost:5173 (proxies /engagements, /health, /ws -> :8000)
 ```
 
-STUB — the React app has not been scaffolded yet. Use shadcn/ui components; no
-ad-hoc CSS where a component exists (see CLAUDE.md conventions).
+Start the backend alongside it: `uvicorn api.main:app --reload` (from repo root).
+
+## Scripts
+
+- `npm run dev` — dev server with API/WS proxy to uvicorn :8000
+- `npm run build` — typecheck (`tsc --noEmit`) + production build
+- `npm run typecheck` — types only
+
+## Structure
+
+```
+src/
+├── lib/
+│   ├── api.ts          REST + WebSocket client + types (Finding, Engagement)
+│   ├── severity.ts     CVSS -> severity banding, risk rating, colors
+│   └── utils.ts        cn() classname helper
+├── components/
+│   ├── ui/             shadcn-style primitives (button, card, badge, input)
+│   ├── TargetBar.tsx   target input + launch + scope badge
+│   ├── ChainViz.tsx    recon -> scanning -> exploitation phase graph
+│   ├── SeveritySummary.tsx   risk rating + severity counts
+│   ├── FindingsFeed.tsx      live findings list with severity badges
+│   └── ReasoningStream.tsx   engagement status/event log
+├── App.tsx             wires panels to the API + WebSocket
+└── main.tsx            entry
+```
+
+## Status
+
+Scaffolded and building. Panels render and wire to the live API; the reasoning
+stream currently shows engagement state transitions. Next: per-step reasoning
+events from the backend, scope management UI, and one-click PDF export (needs a
+report endpoint on the API).
