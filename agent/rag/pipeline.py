@@ -12,9 +12,14 @@ CLI:
 from __future__ import annotations
 
 import argparse
-from typing import Any, Optional
+import os
+import time
+from typing import Any, Iterator, Optional
 
 from agent.tools.schema import severity_from_cvss
+
+NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+PAGE_SIZE = 2000  # NVD API 2.0 maximum results per page
 
 
 def _extract_cvss(metrics: dict) -> tuple[Optional[float], Optional[str]]:
@@ -83,9 +88,58 @@ def cve_to_chunk(fields: dict[str, Any]) -> str:
     return " | ".join(p for p in parts if p)
 
 
-def build() -> None:
-    """Full build: NVD fetch -> chunk -> embed -> ChromaDB. Lazy imports."""
-    raise NotImplementedError("pipeline.build stub — implement NVD fetch loop (Week 10).")
+def _fetch_page(start_index: int, params: Optional[dict] = None, api_key: Optional[str] = None,
+                session=None, page_size: int = PAGE_SIZE, timeout: int = 60):
+    """Fetch one NVD page. Returns (items, total_results). `session` defaults to
+    the `requests` module (lazy import) but is injectable for tests."""
+    if session is None:
+        import requests  # pip install requests
+        session = requests
+    query = {"resultsPerPage": page_size, "startIndex": start_index}
+    if params:
+        query.update(params)
+    headers = {"apiKey": api_key} if api_key else {}
+    resp = session.get(NVD_URL, params=query, headers=headers, timeout=timeout)
+    resp.raise_for_status()
+    data = resp.json()
+    return data.get("vulnerabilities", []), data.get("totalResults", 0)
+
+
+def _iter_all(params: Optional[dict] = None, api_key: Optional[str] = None, session=None,
+              page_size: int = PAGE_SIZE, sleep_s: float = 0.6,
+              max_pages: Optional[int] = None) -> Iterator[list[dict]]:
+    """Yield successive pages of raw NVD vulnerability items until exhausted."""
+    start, page = 0, 0
+    while True:
+        items, total = _fetch_page(start, params, api_key, session, page_size)
+        if not items:
+            break
+        yield items
+        start += len(items)
+        page += 1
+        if start >= total or (max_pages and page >= max_pages):
+            break
+        if sleep_s:
+            time.sleep(sleep_s)  # respect NVD rate limits
+
+
+def build(store=None, api_key: Optional[str] = None, session=None,
+          sleep_s: Optional[float] = None, page_size: int = PAGE_SIZE,
+          max_pages: Optional[int] = None) -> int:
+    """Full build: NVD fetch -> normalize -> chunk+embed -> ChromaDB. Returns the
+    number of CVEs added. Rate limit: with an API key NVD allows ~50 req/30s."""
+    api_key = api_key if api_key is not None else os.environ.get("NVD_API_KEY")
+    if sleep_s is None:
+        sleep_s = 0.6 if api_key else 6.0  # unauthenticated NVD is 5 req/30s
+    if store is None:
+        from agent.rag.store import CveStore
+        store = CveStore.default()
+
+    added = 0
+    for items in _iter_all(api_key=api_key, session=session, page_size=page_size,
+                           sleep_s=sleep_s, max_pages=max_pages):
+        added += store.add([extract_cve_fields(it) for it in items])
+    return added
 
 
 def test(query: str) -> None:

@@ -51,12 +51,56 @@ docker-compose -f lab/docker-compose.yml up           # lab tool containers
 
 ## Status
 
-Skeleton stage. Foundations wired: scope gate, shared `Finding` schema, LLM config,
-Nmap wrapper. Everything else is a contract-following stub — see the roadmap in
-[CLAUDE.md](CLAUDE.md). **Month 1 target:** target → Nmap + Nuclei → structured findings.
+**Code-complete.** All four layers + the RAG module are built and covered by the
+offline test suite (`pytest` — 116 tests, ~0.6s, no external services required):
+scope gate · 6-tool belt (nmap, subfinder, nuclei, cve_rag, sqlmap, metasploit) ·
+LangGraph ReAct brain · attack-chain planner · memory + PostgreSQL persistence ·
+NVD → ChromaDB RAG + weekly refresh · FastAPI + WebSocket API · CVSS/MITRE/PDF
+report engine · React 19 operator dashboard (live reasoning stream, scope
+management, PDF export).
+
+Heavy/live dependencies (Groq, ChromaDB, sentence-transformers, tool binaries,
+Metasploit RPC, PostgreSQL) are lazily imported and injectable, so the whole
+suite runs without any of them. What remains is **live provisioning**, below.
+
+## Testing
+
+```bash
+python -m venv .venv && ./.venv/bin/pip install -r requirements-dev.txt
+./.venv/bin/python -m pytest          # 116 tests, offline
+cd dashboard && npm install && npm run build   # typecheck + build the frontend
+```
+
+## Live setup — from code-complete to a real Metasploitable run
+
+Everything above is code + tests. To run a real engagement you provision the lab
+and secrets, build the CVE store once, then launch. **Lab-only** — read
+[SECURITY.md](SECURITY.md) first.
+
+1. **Secrets.** `cp .env.example .env` and fill in:
+   - `GROQ_API_KEY` (agent reasoning + report prose) — free at console.groq.com
+   - `NVD_API_KEY` (CVE fetch) — free at nvd.nist.gov/developers/request-an-api-key
+   - `DATABASE_URL` (PostgreSQL), and `REDAGENT_SCOPE` (e.g. `10.0.0.0/24`)
+2. **Tool binaries** on the attack host (Kali EC2 / Docker): `nmap`, `subfinder`,
+   `nuclei`, `sqlmap`, and Metasploit with `msfrpcd` running
+   (`MSF_RPC_PASSWORD`/`HOST`/`PORT`). `docker-compose -f lab/docker-compose.yml up`
+   brings up the vulnerable targets (DVWA; add Metasploitable) on an
+   internet-isolated network.
+3. **PostgreSQL.** Point `DATABASE_URL` at a reachable instance; the schema is
+   created on first `get_store()`.
+4. **Build the CVE store** (once, ~2–3h): `python agent/rag/pipeline.py --build`,
+   then verify: `python agent/rag/pipeline.py --test 'vsftpd 2.3.4'` → expect
+   `CVE-2011-2523` as the top result. Keep it current with a weekly cron:
+   `0 2 * * 0 python agent/rag/update.py`.
+5. **Launch.** Start the backend (`uvicorn api.main:app --reload`) and dashboard
+   (`cd dashboard && npm run dev`). In the dashboard: add your lab CIDR to scope,
+   enter the Metasploitable IP, hit **Launch**, watch the reasoning stream +
+   findings, then **Export PDF**.
 
 ## Configuration
 
 The LLM is a config value, never hardcoded (Groq primary, Ollama fallback). Secrets
-come from `.env`. Scope is set via `REDAGENT_SCOPE` (comma-separated IPs/CIDRs) —
-empty means every target is denied, by design.
+come from `.env`. Scope is set via `REDAGENT_SCOPE` (comma-separated IPs/CIDRs) and
+can also be managed at runtime from the dashboard — empty means every target is
+denied, by design. Destructive tool paths (SQLMap `--dump`, Metasploit `exploit`)
+are always opt-in, never defaulted on.
