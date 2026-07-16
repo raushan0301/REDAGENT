@@ -21,3 +21,4 @@ class EngagementStatus(BaseModel):
     target: str
     state: str                        # queued | running | done | error
     findings: list[Finding] = []
+    error: str | None = None
