@@ -1,4 +1,5 @@
 """Scope gate — the single most important safety control in RedAgent.
+# Author: Raushan
 
 HARD RULE (see CLAUDE.md): the agent NEVER runs a tool against a target that is
 not on the operator-defined allowlist. Every tool wrapper calls `in_scope(target)`
