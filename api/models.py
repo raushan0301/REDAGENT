@@ -16,6 +16,14 @@ class EngagementRequest(BaseModel):
     allow_destructive: bool = False   # explicit operator opt-in; default safe
 
 
+class ScopeEntry(BaseModel):
+    entry: str                        # IP or CIDR, e.g. "10.0.0.0/24"
+
+
+class ScopeList(BaseModel):
+    scope: list[str]
+
+
 class EngagementStatus(BaseModel):
     id: str
     target: str

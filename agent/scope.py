@@ -15,28 +15,65 @@ from __future__ import annotations
 import ipaddress
 import os
 import socket
-from functools import lru_cache
-from typing import Iterable
 
 
 # Operators declare scope here (or via REDAGENT_SCOPE env, comma-separated).
 # Entries may be single IPs or CIDR ranges. Everything defaults to DENY.
 DEFAULT_SCOPE: tuple[str, ...] = ()
 
+# Runtime scope added via the operator dashboard / API. Merged with the env
+# allowlist. Still subject to the private/loopback lab-only rule in in_scope().
+_RUNTIME_SCOPE: list[str] = []
+
+
+def _scope_entries() -> list[str]:
+    raw = os.environ.get("REDAGENT_SCOPE", "")
+    env_entries = [e.strip() for e in raw.split(",") if e.strip()] if raw else list(DEFAULT_SCOPE)
+    return env_entries + list(_RUNTIME_SCOPE)
+
 
 def _load_scope() -> list[ipaddress._BaseNetwork]:
-    raw = os.environ.get("REDAGENT_SCOPE", "")
-    entries: Iterable[str] = (
-        [e.strip() for e in raw.split(",") if e.strip()] if raw else DEFAULT_SCOPE
-    )
     nets: list[ipaddress._BaseNetwork] = []
-    for entry in entries:
+    for entry in _scope_entries():
         try:
             nets.append(ipaddress.ip_network(entry, strict=False))
         except ValueError:
             # A malformed scope entry is ignored, never treated as "allow".
             continue
     return nets
+
+
+def list_scope() -> list[str]:
+    """All active scope entries (env + runtime), de-duplicated, order-preserving."""
+    return list(dict.fromkeys(_scope_entries()))
+
+
+def add_scope(entry: str) -> bool:
+    """Add a lab network/IP to the runtime allowlist. Rejects malformed entries
+    and any non-private/loopback network (lab-only). Returns True if added."""
+    try:
+        net = ipaddress.ip_network(entry.strip(), strict=False)
+    except (ValueError, AttributeError):
+        return False
+    if not (net.is_private or net.is_loopback):
+        return False  # lab-only: never allow a public network into scope
+    normalized = str(net)
+    if normalized not in _RUNTIME_SCOPE:
+        _RUNTIME_SCOPE.append(normalized)
+    return True
+
+
+def remove_scope(entry: str) -> bool:
+    """Remove a runtime scope entry. Returns True if it was present."""
+    try:
+        normalized = str(ipaddress.ip_network(entry.strip(), strict=False))
+    except (ValueError, AttributeError):
+        normalized = entry.strip()
+    for candidate in (normalized, entry.strip()):
+        if candidate in _RUNTIME_SCOPE:
+            _RUNTIME_SCOPE.remove(candidate)
+            return True
+    return False
 
 
 def _host_of(target: str) -> str:
@@ -90,8 +127,8 @@ def in_scope(target: str) -> bool:
     return any(addr in net for net in scope)
 
 
-@lru_cache(maxsize=1)
 def scope_summary() -> str:
-    """Human-readable summary of the active scope, for logs / the dashboard."""
+    """Human-readable summary of the active scope, for logs / the dashboard.
+    Not cached — scope is mutable at runtime via add_scope/remove_scope."""
     nets = _load_scope()
     return ", ".join(str(n) for n in nets) if nets else "(empty — all targets denied)"

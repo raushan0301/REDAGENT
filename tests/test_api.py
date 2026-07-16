@@ -55,15 +55,16 @@ def test_engagement_lifecycle_via_websocket(client):
     eid = r.json()["id"]
     assert r.json()["state"] == "running"
 
-    # WebSocket streams initial status, then final "done" with findings.
+    # WebSocket streams typed frames; collect status frames until "done".
     with client.websocket_connect(f"/ws/{eid}") as ws:
-        first = ws.receive_json()
-        assert first["id"] == eid
-        # Drain until we see the terminal state (initial may already be done).
-        final = first
-        while final["state"] == "running":
-            final = ws.receive_json()
-    assert final["state"] == "done"
+        final = None
+        for _ in range(20):
+            frame = ws.receive_json()
+            if frame.get("type") == "status":
+                final = frame
+                if frame["state"] != "running":
+                    break
+    assert final is not None and final["state"] == "done"
     assert any(f["cve"] == "CVE-2011-2523" for f in final["findings"])
 
     # And GET now reflects the completed engagement.
@@ -75,3 +76,26 @@ def test_engagement_lifecycle_via_websocket(client):
 def test_ws_unknown_engagement_reports_error(client):
     with client.websocket_connect("/ws/nope") as ws:
         assert ws.receive_json() == {"error": "unknown engagement"}
+
+
+def test_ws_streams_reasoning_events(client):
+    # A runner that accepts on_event emits per-step reason/act/observe frames.
+    def emitting_runner(target, on_event=None):
+        if on_event:
+            on_event({"type": "reason", "step": 0, "text": "Selected nmap_scan"})
+            on_event({"type": "act", "step": 0, "text": "Executing nmap_scan"})
+            on_event({"type": "observe", "step": 1, "text": "nmap_scan returned 1 finding(s)"})
+        return _fake_runner(target)
+
+    app.state.runner = emitting_runner
+    eid = client.post("/engagements", json={"target": "10.0.0.5"}).json()["id"]
+
+    types: list[str] = []
+    with client.websocket_connect(f"/ws/{eid}") as ws:
+        try:
+            while True:  # drain every frame until the server closes the socket
+                types.append(ws.receive_json().get("type"))
+        except Exception:
+            pass
+    assert "reason" in types and "act" in types and "observe" in types
+    assert "status" in types
