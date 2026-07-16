@@ -23,11 +23,12 @@ from langgraph.graph import END, StateGraph
 
 from agent.config import MAX_STEPS, STEP_SLEEP_S
 from agent.memory import summarize_state
+from agent.tools.cve_rag_tool import search_cve_database
 from agent.tools.nmap_tool import nmap_scan
 from agent.tools.nuclei_tool import nuclei_scan
 from agent.tools.schema import Finding
 
-DEFAULT_TOOLS = [nmap_scan, nuclei_scan]
+DEFAULT_TOOLS = [nmap_scan, nuclei_scan, search_cve_database]
 
 SYSTEM_PROMPT = (
     "You are RedAgent, an autonomous penetration-testing agent operating ONLY "

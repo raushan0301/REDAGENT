@@ -1,0 +1,21 @@
+{
+  "cve": {
+    "id": "CVE-2011-2523",
+    "descriptions": [
+      {"lang": "en", "value": "vsftpd 2.3.4 downloaded between 20110630 and 20110703 contains a backdoor which opens a shell on port 6200/tcp."},
+      {"lang": "es", "value": "descripcion en espanol"}
+    ],
+    "metrics": {
+      "cvssMetricV31": [
+        {"cvssData": {"baseScore": 10.0, "baseSeverity": "CRITICAL"}}
+      ]
+    },
+    "configurations": [
+      {"nodes": [
+        {"cpeMatch": [
+          {"criteria": "cpe:2.3:a:vsftpd_project:vsftpd:2.3.4:*:*:*:*:*:*:*"}
+        ]}
+      ]}
+    ]
+  }
+}
