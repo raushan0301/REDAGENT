@@ -1,0 +1,7 @@
+www.lab.local
+admin.lab.local
+mail.lab.local
+www.lab.local
+
+not a hostname line
+dev.internal.lab.local
