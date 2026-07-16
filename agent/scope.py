@@ -39,15 +39,31 @@ def _load_scope() -> list[ipaddress._BaseNetwork]:
     return nets
 
 
-def _resolve(target: str) -> ipaddress._BaseAddress | None:
-    """Resolve a target (IP or hostname) to an IP address, or None on failure."""
+def _host_of(target: str) -> str:
+    """Extract the bare host from an IP, hostname, host:port, or URL.
+
+    Tool targets vary — Nmap gets an IP, Nuclei/SQLMap get a URL — but the scope
+    gate must always check the underlying host. Strips scheme, path, and port.
+    """
     target = target.strip()
+    if "://" in target or "/" in target or ":" in target:
+        from urllib.parse import urlparse
+        parsed = urlparse(target if "://" in target else "//" + target)
+        if parsed.hostname:
+            return parsed.hostname
+    return target
+
+
+def _resolve(target: str) -> ipaddress._BaseAddress | None:
+    """Resolve a target (IP, hostname, host:port, or URL) to an IP address, or
+    None on failure."""
+    host = _host_of(target)
     try:
-        return ipaddress.ip_address(target)
+        return ipaddress.ip_address(host)
     except ValueError:
         pass
     try:
-        return ipaddress.ip_address(socket.gethostbyname(target))
+        return ipaddress.ip_address(socket.gethostbyname(host))
     except (socket.gaierror, ValueError, OSError):
         return None
 

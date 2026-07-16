@@ -56,3 +56,16 @@ def test_malformed_scope_entry_is_ignored_not_allowed(monkeypatch):
 def test_loopback_scopable(monkeypatch):
     scope = _reload_scope(monkeypatch, "127.0.0.0/8")
     assert scope.in_scope("127.0.0.1") is True
+
+
+def test_url_target_scoped_by_host(monkeypatch):
+    # Nuclei/SQLMap pass URLs — scope must check the underlying host.
+    scope = _reload_scope(monkeypatch, "10.0.0.0/24")
+    assert scope.in_scope("http://10.0.0.5/vuln.php?id=1") is True
+    assert scope.in_scope("https://10.9.9.9/") is False       # out of allowlist
+    assert scope.in_scope("http://8.8.8.8/") is False          # public, refused
+
+
+def test_host_port_target_scoped_by_host(monkeypatch):
+    scope = _reload_scope(monkeypatch, "10.0.0.0/24")
+    assert scope.in_scope("10.0.0.5:8080") is True
