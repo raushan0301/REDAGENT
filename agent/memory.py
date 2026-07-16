@@ -82,6 +82,19 @@ def summarize_state(findings: list[Finding], seen_actions: set[str]) -> str:
     return "\n".join(lines) if lines else "No findings yet."
 
 
-def persist_findings(session_id: str, findings: list[Finding]) -> None:
-    """Write findings to PostgreSQL long-term store. STUB (Chunk 5 / Week 2)."""
-    raise NotImplementedError("persist_findings stub — wire PostgreSQL (Chunk 5).")
+def persist_findings(session_id: str, findings: list[Finding], store=None) -> int:
+    """Write findings to the long-term store (PostgreSQL by default). Pass an
+    explicit `store` (any object with `.save(session_id, findings)`) for tests or
+    alternate backends. Returns the number written."""
+    if store is None:
+        from api.db import get_store
+        store = get_store()
+    return store.save(session_id, findings)
+
+
+def load_findings(session_id: str, store=None) -> list[Finding]:
+    """Load findings for a session from the long-term store."""
+    if store is None:
+        from api.db import get_store
+        store = get_store()
+    return store.load(session_id)
