@@ -106,3 +106,43 @@ def test_out_of_scope_never_touches_client():
                                       "run_exploit": True})
     assert findings[0].title == "Out of scope"
     assert mod.executed is False
+
+
+# --- _RealModule.check() — pymetasploit3's own MsfModule shadows its check()
+# method with a plain bool on modules that don't implement live checking
+# (discovered live against exploit/unix/ftp/vsftpd_234_backdoor). ------------
+
+class FakePymetasploit3Module:
+    """Mimics pymetasploit3's real quirk: `check` can be a non-callable bool,
+    not a bound method, depending on module capabilities."""
+    def __init__(self, check_value):
+        self.check = check_value   # bool (unsupported) or a callable (supported)
+
+    def __setitem__(self, key, value):
+        pass
+
+    def execute(self, payload=None):
+        return {}
+
+
+def test_real_module_check_handles_noncallable_bool_attribute():
+    from agent.tools.metasploit_tool import _RealModule
+    wrapped = _RealModule(FakePymetasploit3Module(check_value=False))
+    assert wrapped.check() == "unsupported"   # must not raise TypeError
+
+
+def test_real_module_check_calls_through_when_supported():
+    from agent.tools.metasploit_tool import _RealModule
+    wrapped = _RealModule(FakePymetasploit3Module(check_value=lambda: {"code": "vulnerable"}))
+    assert wrapped.check() == "vulnerable"
+
+
+def test_unsupported_check_verdict_does_not_block_opted_in_exploit():
+    # 'unsupported' must be treated as inconclusive, not 'safe' — exploitation
+    # should still proceed when the operator explicitly opts in.
+    mod = FakeModule("unsupported", opens_session=True)
+    set_client(FakeClient(mod))
+    findings = metasploit_run.invoke({"target": "10.0.0.5", "module": "m",
+                                      "run_exploit": True})
+    assert mod.executed is True
+    assert any(f.phase == "post-exploit" for f in findings)

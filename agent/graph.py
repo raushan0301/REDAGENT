@@ -84,7 +84,11 @@ def build_graph(
             SystemMessage(SYSTEM_PROMPT),
             HumanMessage(f"Target: {state['target']}\nCurrent state:\n{summary}"),
         ]
-        ai: AIMessage = model.invoke(prompt)
+        try:
+            ai: AIMessage = model.invoke(prompt)
+        except Exception as exc:  # noqa: BLE001 - a flaky LLM call must not crash the engagement
+            emit({"type": "error", "step": step, "text": f"Reasoning failed, ending: {exc}"})
+            return {"pending": AIMessage(content="")}  # no tool_calls -> route() treats as DONE
         if getattr(ai, "tool_calls", None):
             call = ai.tool_calls[0]
             emit({"type": "reason", "step": step,

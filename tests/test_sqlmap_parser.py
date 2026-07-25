@@ -54,3 +54,25 @@ def test_default_run_is_non_destructive(monkeypatch):
 
     _run("http://10.0.0.5/?id=1", allow_dump=True)
     assert "--dump" in captured["args"]
+
+
+def test_cookie_passed_through_for_authenticated_targets(monkeypatch):
+    # Discovered testing DVWA live: its SQLi page needs a session cookie or
+    # sqlmap just hits the login redirect and finds nothing.
+    captured = {}
+
+    def fake_run(args, capture_output, text, timeout):
+        captured["args"] = args
+        class P:
+            stdout, stderr = "", ""
+        return P()
+
+    monkeypatch.setattr("agent.tools.sqlmap_tool.subprocess.run", fake_run)
+
+    _run("http://10.0.0.5/?id=1", allow_dump=False, cookie="PHPSESSID=abc; security=low")
+    assert "--cookie" in captured["args"]
+    assert "PHPSESSID=abc; security=low" in captured["args"]
+
+    captured.clear()
+    _run("http://10.0.0.5/?id=1", allow_dump=False)
+    assert "--cookie" not in captured["args"]

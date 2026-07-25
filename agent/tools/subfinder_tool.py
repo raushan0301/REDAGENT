@@ -13,6 +13,7 @@ import subprocess
 from langchain_core.tools import tool
 
 from agent.scope import in_scope
+from agent.tools.exec_guard import EXEC_ERRORS, exec_error_finding
 from agent.tools.schema import Finding
 
 TOOL_NAME = "subfinder"
@@ -56,7 +57,10 @@ def subfinder_scan(target: str) -> list[Finding]:
         return [Finding(tool=TOOL_NAME, phase=PHASE, target=target,
                         title="Out of scope",
                         detail="Target not in operator scope list; not executed.")]
-    raw = _run(target)
+    try:
+        raw = _run(target)
+    except EXEC_ERRORS as exc:
+        return [exec_error_finding(TOOL_NAME, PHASE, target, exc)]
     findings = _parse(target, raw)
     return findings or [Finding(tool=TOOL_NAME, phase=PHASE, target=target,
                                title="No subdomains found",

@@ -59,6 +59,8 @@ class ScriptedLLM:
     def invoke(self, messages):
         msg = self.script[min(self.calls, len(self.script) - 1)]
         self.calls += 1
+        if isinstance(msg, Exception):
+            raise msg
         return msg
 
 
@@ -78,6 +80,19 @@ def test_full_chain_nmap_then_nuclei_then_done():
 
 def test_done_immediately_yields_no_findings():
     assert _run([_done()]) == []
+
+
+def test_llm_failure_mid_run_ends_gracefully_with_findings_so_far():
+    # Discovered live: Groq occasionally returns a malformed tool call and the
+    # client raises. The engagement must keep the findings gathered so far and
+    # end cleanly instead of crashing the process.
+    events = []
+    findings = _run(
+        [_call("nmap_scan"), RuntimeError("simulated bad tool-call response")],
+        on_event=events.append,
+    )
+    assert [f.tool for f in findings] == ["nmap"]   # first step's finding preserved
+    assert any(e["type"] == "error" for e in events)
 
 
 def test_seen_actions_blocks_identical_retry():

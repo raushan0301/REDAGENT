@@ -1,28 +1,67 @@
-# RedAgent lab — isolated tool + target containers.
-# STUB (Month 1, Week 1). Bring up with:
+# RedAgent lab — local dev target containers. Bring up with:
 #   docker-compose -f lab/docker-compose.yml up
 #
-# The target subnet must have NO route to the public internet (see SECURITY.md).
-# TODO: pin images, add an internal-only network, wire Metasploit XMLRPC + DVWA.
-
-version: "3.9"
+# LOCAL DEV ONLY. This is a plain bridge network so the host (running RedAgent)
+# can reach the target container — Docker's `internal: true` network flag blocks
+# ALL port publishing, not just outbound internet, so it can't do both at once.
+# Real network isolation (no route to the public internet) is provided by the
+# AWS VPC private subnet in the actual lab deployment (see SECURITY.md /
+# CLAUDE.md) — this compose file is single-operator laptop convenience only,
+# running known-vulnerable practice software (DVWA) with no real data.
+# TODO: pin images, wire Metasploitable + Metasploit XMLRPC.
 
 networks:
-  labnet:
-    internal: true   # no outbound internet from the lab network
+  labnet: {}
 
 services:
   # --- Intentionally vulnerable targets ---
   dvwa:
     image: vulnerables/web-dvwa
     networks: [labnet]
+    ports:
+      - "127.0.0.1:8081:80"   # host-only publish (127.0.0.1, not 0.0.0.0)
 
-  # metasploitable:            # TODO: add Metasploitable target
-  #   image: tleemcjr/metasploitable2
-  #   networks: [labnet]
+  # Metasploitable2 — published on 127.0.0.1 (127.0.0.2 would keep it cleanly
+  # separate from other localhost services, but needs `sudo ifconfig lo0 alias`
+  # first; skipped here to avoid a sudo prompt). Its ports (21, 3632, 6667, ...)
+  # don't collide with the other services already running on this machine.
+  metasploitable:
+    image: tleemcjr/metasploitable2
+    networks: [labnet]
+    # Default CMD is `services.sh && bash` — without an open stdin, bash hits
+    # EOF immediately and the container exits right after boot. Keep it alive.
+    stdin_open: true
+    tty: true
+    ports:
+      - "127.0.0.1:21:21"     # vsftpd 2.3.4 backdoor — CVE-2011-2523
+      # 22 (ssh) and 53 (dns) omitted — taken by macOS Remote Login / Colima's VM
+      - "127.0.0.1:23:23"
+      - "127.0.0.1:25:25"
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:111:111"
+      - "127.0.0.1:139:139"   # Samba usermap_script — CVE-2007-2447
+      - "127.0.0.1:445:445"
+      - "127.0.0.1:512:512"
+      - "127.0.0.1:513:513"
+      - "127.0.0.1:514:514"
+      - "127.0.0.1:1099:1099"
+      - "127.0.0.1:1524:1524"
+      - "127.0.0.1:2049:2049"
+      - "127.0.0.1:2121:2121"
+      - "127.0.0.1:3306:3306"
+      - "127.0.0.1:3632:3632"  # distccd — CVE-2004-2687
+      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5900:5900"
+      - "127.0.0.1:6000:6000"
+      - "127.0.0.1:6200:6200"
+      - "127.0.0.1:6667:6667"  # UnrealIRCd backdoor — CVE-2010-2075
+      - "127.0.0.1:8009:8009"
+      - "127.0.0.1:8180:8180"
 
   # --- Metasploit RPC (Month 2, Week 5) ---
-  # msf:
-  #   image: metasploitframework/metasploit-framework
-  #   command: ./msfrpcd -P redagent -S -a 0.0.0.0
-  #   networks: [labnet]
+  msf:
+    image: metasploitframework/metasploit-framework
+    networks: [labnet]
+    command: ["./msfrpcd", "-P", "redagent", "-S", "-a", "0.0.0.0", "-p", "55553", "-f"]
+    ports:
+      - "127.0.0.1:55553:55553"

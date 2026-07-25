@@ -14,6 +14,7 @@ import subprocess
 from langchain_core.tools import tool
 
 from agent.scope import in_scope
+from agent.tools.exec_guard import EXEC_ERRORS, exec_error_finding
 from agent.tools.schema import Finding, severity_from_cvss
 
 TOOL_NAME = "nuclei"
@@ -109,7 +110,10 @@ def nuclei_scan(target: str) -> list[Finding]:
                 detail="Target not in operator scope list; not executed.",
             )
         ]
-    raw = _run(target)
+    try:
+        raw = _run(target)
+    except EXEC_ERRORS as exc:
+        return [exec_error_finding(TOOL_NAME, PHASE, target, exc)]
     findings = _parse(target, raw)
     return findings or [
         Finding(

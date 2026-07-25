@@ -48,8 +48,13 @@ class CveStore:
 
     # --- read ----------------------------------------------------------------
     def query(self, text: str, top_n: int = 5, min_cvss: Optional[float] = 7.0) -> list[dict]:
-        """Cosine search -> rows filtered by min_cvss, ranked by CVSS desc then
-        distance asc. Returns dicts: id, cvss, severity, description, distance."""
+        """Cosine search -> rows filtered by min_cvss, ranked by semantic
+        relevance (distance asc). CVSS is a filter, not a ranking key — sorting
+        by CVSS first would let an unrelated CVSS-10.0 CVE outrank the CVE that
+        actually matches the query (discovered live: 'vsftpd 2.3.4' surfaced
+        several unrelated 1999-era CVSS-10.0 CVEs ahead of CVE-2011-2523, which
+        had the smallest/best distance but a 9.8 score). Returns dicts: id,
+        cvss, severity, description, distance."""
         qvec = self.embed_fn([text])[0]
         raw = self.collection.query(query_embeddings=[qvec], n_results=max(top_n * 3, top_n))
 
@@ -71,8 +76,7 @@ class CveStore:
                 "description": meta.get("description", ""),
                 "distance": dists[i] if i < len(dists) else None,
             })
-        rows.sort(key=lambda r: (-(r["cvss"] or 0.0),
-                                 r["distance"] if r["distance"] is not None else 1e9))
+        rows.sort(key=lambda r: r["distance"] if r["distance"] is not None else 1e9)
         return rows[:top_n]
 
     # --- factory -------------------------------------------------------------

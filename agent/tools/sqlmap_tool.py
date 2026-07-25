@@ -14,6 +14,7 @@ import subprocess
 from langchain_core.tools import tool
 
 from agent.scope import in_scope
+from agent.tools.exec_guard import EXEC_ERRORS, exec_error_finding
 from agent.tools.schema import Finding
 
 TOOL_NAME = "sqlmap"
@@ -24,8 +25,10 @@ _PARAM_RE = re.compile(r"([^\s(]+)\s*(?:\(([^)]+)\))?")
 _DBMS_RE = re.compile(r"back-end DBMS:\s*(?:is\s*)?([^\n]+)", re.IGNORECASE)
 
 
-def _run(target: str, allow_dump: bool) -> str:
+def _run(target: str, allow_dump: bool, cookie: str | None = None) -> str:
     args = ["sqlmap", "-u", target, "--batch", "-v", "0"]
+    if cookie:
+        args += ["--cookie", cookie]  # authenticated scan, e.g. session + security level
     if allow_dump:
         args.append("--dump")  # destructive extraction — operator opt-in only
     proc = subprocess.run(args, capture_output=True, text=True, timeout=TIMEOUT_S)
@@ -68,15 +71,20 @@ def _parse(target: str, raw: str) -> list[Finding]:
 
 
 @tool
-def sqlmap_scan(target: str, allow_dump: bool = False) -> list[Finding]:
+def sqlmap_scan(target: str, allow_dump: bool = False, cookie: str | None = None) -> list[Finding]:
     """Test an in-scope lab URL for SQL injection. Detection only by default;
     set allow_dump=True only with explicit operator authorization (destructive
-    data extraction). Use during exploitation on web targets with parameters."""
+    data extraction). Pass `cookie` (e.g. "PHPSESSID=...; security=low") for
+    targets that require an authenticated session. Use during exploitation on
+    web targets with parameters."""
     if not in_scope(target):
         return [Finding(tool=TOOL_NAME, phase=PHASE, target=target,
                         title="Out of scope",
                         detail="Target not in operator scope list; not executed.")]
-    raw = _run(target, allow_dump)
+    try:
+        raw = _run(target, allow_dump, cookie)
+    except EXEC_ERRORS as exc:
+        return [exec_error_finding(TOOL_NAME, PHASE, target, exc)]
     findings = _parse(target, raw)
     return findings or [Finding(tool=TOOL_NAME, phase=PHASE, target=target,
                                title="No SQL injection found",

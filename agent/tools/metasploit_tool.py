@@ -112,7 +112,16 @@ class _RealModule:
         self._mod[key] = value
 
     def check(self) -> str:
-        res = self._mod.check() or {}
+        # pymetasploit3's MsfModule.__init__ sets `self.check` to the module
+        # info's boolean "supports checking" capability flag when present,
+        # shadowing the class's own check() method — so on modules that don't
+        # implement live checking (e.g. vsftpd_234_backdoor), `mod.check` is a
+        # plain bool, not callable. Treat that as an inconclusive verdict
+        # rather than crashing; exploitation may still proceed on opt-in.
+        check_attr = getattr(self._mod, "check", None)
+        if not callable(check_attr):
+            return "unsupported"
+        res = check_attr() or {}
         return res.get("code", "unknown")
 
     def execute(self, payload=None):

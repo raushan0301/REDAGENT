@@ -40,17 +40,21 @@ def test_query_filters_below_min_cvss():
     assert [r["id"] for r in rows] == ["CVE-A", "CVE-C"]   # B (5.0) filtered out
 
 
-def test_query_ranks_by_cvss_desc():
+def test_query_ranks_by_relevance_not_cvss():
+    # A more relevant (smaller-distance) CVE must outrank a less relevant one
+    # even if the less-relevant CVE has a higher CVSS. Sorting by CVSS first
+    # was the actual bug found live: 'vsftpd 2.3.4' surfaced unrelated
+    # CVSS-10.0 CVEs ahead of CVE-2011-2523 (CVSS 9.8, but the closest match).
     result = {
-        "ids": [["low", "high"]],
+        "ids": [["closer", "farther"]],
         "metadatas": [[
             {"cvss": 7.1, "severity": "High", "description": "l"},
             {"cvss": 9.9, "severity": "Critical", "description": "h"},
         ]],
-        "distances": [[0.05, 0.9]],   # 'low' is closer, but 'high' outranks on CVSS
+        "distances": [[0.05, 0.9]],
     }
     rows = _store(result).query("x", min_cvss=7.0)
-    assert [r["id"] for r in rows] == ["high", "low"]
+    assert [r["id"] for r in rows] == ["closer", "farther"]
 
 
 def test_query_respects_top_n():
