@@ -13,7 +13,25 @@
 networks:
   labnet: {}
 
+volumes:
+  pgdata: {}
+
 services:
+  # --- RedAgent's own findings database (isolated from any local Postgres) ---
+  # Host port 5433, not 5432 — Metasploitable's own bundled postgres already
+  # publishes 5432. Matches DATABASE_URL in .env.example.
+  postgres:
+    image: postgres:16-alpine
+    networks: [labnet]
+    environment:
+      POSTGRES_USER: redagent
+      POSTGRES_PASSWORD: redagent
+      POSTGRES_DB: redagent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+
   # --- Intentionally vulnerable targets ---
   dvwa:
     image: vulnerables/web-dvwa

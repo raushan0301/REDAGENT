@@ -8,7 +8,7 @@ import pytest
 
 from agent.memory import persist_findings, load_findings
 from agent.tools.schema import Finding
-from api.db import FindingStore
+from api.db import _DDL, FindingStore
 
 
 @pytest.fixture
@@ -63,3 +63,13 @@ def test_memory_helpers_use_injected_store(store):
     assert persist_findings("sess-m", _findings(), store=store) == 2
     loaded = load_findings("sess-m", store=store)
     assert len(loaded) == 2 and loaded[0].tool == "nmap"
+
+
+def test_seq_column_is_bigint_not_int():
+    # `seq` is seeded from a microsecond Unix timestamp (~1.7e15 for 2026+),
+    # far beyond a 32-bit INTEGER's ~2.1e9 range. SQLite doesn't enforce column
+    # width so this class of bug is invisible there — it only surfaces against
+    # real PostgreSQL (discovered live: `NumericValueOutOfRange`). Guard the
+    # DDL text directly since we can't run real Postgres in the fast suite.
+    normalized = " ".join(" ".join(_DDL).split())
+    assert "seq BIGINT NOT NULL" in normalized

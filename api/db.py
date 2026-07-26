@@ -21,7 +21,7 @@ _DDL = [
         id          TEXT PRIMARY KEY,
         session_id  TEXT NOT NULL,
         created_at  TEXT NOT NULL,
-        seq         INTEGER NOT NULL,
+        seq         BIGINT NOT NULL,
         tool        TEXT,
         phase       TEXT,
         target      TEXT,
