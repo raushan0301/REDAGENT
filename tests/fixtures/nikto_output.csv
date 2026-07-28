@@ -1,0 +1,7 @@
+"Nikto v2.1.6","10.0.0.5","10.0.0.5","80","0","GET","/","Apache/2.4.49 appears to be outdated (current is at least Apache/2.4.54). Apache 2.2.34 is the EOL for the 2.x branch."
+"Nikto v2.1.6","10.0.0.5","10.0.0.5","80","0","OPTIONS","/","Allowed HTTP Methods: GET, HEAD, POST, OPTIONS, TRACE"
+"Nikto v2.1.6","10.0.0.5","10.0.0.5","80","12184","GET","/","The X-Content-Type-Options header is not set."
+"Nikto v2.1.6","10.0.0.5","10.0.0.5","80","3092","GET","/icons/","Directory listing found - /icons/"
+"Nikto v2.1.6","10.0.0.5","10.0.0.5","80","5646","GET","/phpinfo.php","PHP information page found. CVE-2012-4388"
+"Nikto v2.1.6","10.0.0.5","10.0.0.5","80","877","POST","/cgi-bin/.%2e/etc/passwd","Apache 2.4.49 Path Traversal (CVE-2021-41773): directory traversal / remote code execution possible."
+"Nikto v2.1.6 - End Time","10.0.0.5","","","","","",""

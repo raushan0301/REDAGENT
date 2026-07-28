@@ -25,14 +25,15 @@ from agent.config import MAX_STEPS, STEP_SLEEP_S
 from agent.memory import summarize_state
 from agent.tools.cve_rag_tool import search_cve_database
 from agent.tools.metasploit_tool import metasploit_run
+from agent.tools.nikto_tool import nikto_scan
 from agent.tools.nmap_tool import nmap_scan
 from agent.tools.nuclei_tool import nuclei_scan
 from agent.tools.schema import Finding
 from agent.tools.sqlmap_tool import sqlmap_scan
 from agent.tools.subfinder_tool import subfinder_scan
 
-DEFAULT_TOOLS = [nmap_scan, subfinder_scan, nuclei_scan, search_cve_database,
-                 sqlmap_scan, metasploit_run]
+DEFAULT_TOOLS = [nmap_scan, subfinder_scan, nuclei_scan, nikto_scan,
+                 search_cve_database, sqlmap_scan, metasploit_run]
 
 SYSTEM_PROMPT = (
     "You are RedAgent, an autonomous penetration-testing agent operating ONLY "
