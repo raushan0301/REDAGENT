@@ -64,10 +64,26 @@ def metasploit_run(target: str, module: str, run_exploit: bool = False,
                         title="Out of scope",
                         detail="Target not in operator scope list; not executed.")]
 
-    client = _get_client()
-    mod = client.use_exploit(module)
-    mod.set("RHOSTS", target)
-    verdict = (mod.check() or "unknown").lower()
+    try:
+        client = _get_client()
+    except Exception as exc:  # noqa: BLE001 - XMLRPC unreachable (container not running)
+        return [Finding(
+            tool=TOOL_NAME, phase=PHASE, target=target,
+            title="Tool unavailable",
+            detail=f"Metasploit XMLRPC unreachable ({exc}). "
+                   "Start the msf container to enable exploitation.",
+        )]
+
+    try:
+        mod = client.use_exploit(module)
+        mod.set("RHOSTS", target)
+        verdict = (mod.check() or "unknown").lower()
+    except Exception as exc:  # noqa: BLE001 - mid-call RPC failure
+        return [Finding(
+            tool=TOOL_NAME, phase=PHASE, target=target,
+            title="Tool unavailable",
+            detail=f"Metasploit RPC error during module setup: {exc}",
+        )]
 
     findings: list[Finding] = []
     if verdict in VULN_VERDICTS:

@@ -5,6 +5,10 @@ langgraph
 langchain
 langchain-core
 langchain-groq
+groq
+slowapi
+jinja2
+xhtml2pdf
 langchain-ollama
 
 # Backend
@@ -12,6 +16,7 @@ fastapi
 uvicorn[standard]
 websockets
 pydantic>=2
+slowapi
 
 # Database
 psycopg[binary]

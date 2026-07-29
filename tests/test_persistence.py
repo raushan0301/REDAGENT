@@ -73,3 +73,13 @@ def test_seq_column_is_bigint_not_int():
     # DDL text directly since we can't run real Postgres in the fast suite.
     normalized = " ".join(" ".join(_DDL).split())
     assert "seq BIGINT NOT NULL" in normalized
+
+
+def test_list_sessions(store):
+    store.save("sess-1", _findings("10.0.0.5"))
+    store.save("sess-2", _findings("10.0.0.6"))
+    
+    sessions = store.list_sessions()
+    assert len(sessions) == 2
+    assert sessions[0]["id"] == "sess-2" or sessions[1]["id"] == "sess-2"
+    assert sessions[0]["num_findings"] == 2

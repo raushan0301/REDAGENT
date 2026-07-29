@@ -35,6 +35,7 @@ services:
   # --- Intentionally vulnerable targets ---
   dvwa:
     image: vulnerables/web-dvwa
+    platform: linux/amd64
     networks: [labnet]
     ports:
       - "127.0.0.1:8081:80"   # host-only publish (127.0.0.1, not 0.0.0.0)
@@ -45,6 +46,7 @@ services:
   # don't collide with the other services already running on this machine.
   metasploitable:
     image: tleemcjr/metasploitable2
+    platform: linux/amd64
     networks: [labnet]
     # Default CMD is `services.sh && bash` — without an open stdin, bash hits
     # EOF immediately and the container exits right after boot. Keep it alive.

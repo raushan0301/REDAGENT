@@ -23,9 +23,9 @@ def _fake_runner(target: str) -> list[Finding]:
 def client(monkeypatch):
     monkeypatch.setenv("REDAGENT_SCOPE", "10.0.0.0/24")
     app.state.runner = _fake_runner
+    c = TestClient(app, headers={"X-API-Key": "redagent-dev-key"})
+    yield c
     ENGAGEMENTS.clear()
-    with TestClient(app) as c:
-        yield c
 
 
 def test_health_reports_scope(client):
@@ -56,16 +56,15 @@ def test_engagement_lifecycle_via_websocket(client):
     assert r.json()["state"] == "running"
 
     # WebSocket streams typed frames; collect status frames until "done".
-    with client.websocket_connect(f"/ws/{eid}") as ws:
-        final = None
-        for _ in range(20):
+    with client.websocket_connect(f"/ws/{eid}?token=redagent-dev-key") as ws:
+        msgs = []
+        while True:
             frame = ws.receive_json()
-            if frame.get("type") == "status":
-                final = frame
-                if frame["state"] != "running":
-                    break
-    assert final is not None and final["state"] == "done"
-    assert any(f["cve"] == "CVE-2011-2523" for f in final["findings"])
+            msgs.append(frame)
+            if frame.get("type") == "status" and frame.get("state") == "done":
+                break
+    assert msgs[-1]["state"] == "done"
+    assert any(f["cve"] == "CVE-2011-2523" for f in msgs[-1]["findings"])
 
     # And GET now reflects the completed engagement.
     got = client.get(f"/engagements/{eid}").json()
@@ -73,8 +72,21 @@ def test_engagement_lifecycle_via_websocket(client):
     assert len(got["findings"]) == 2
 
 
+def test_auth_rejection_without_key():
+    unauth_client = TestClient(app)
+    r = unauth_client.get("/health")
+    assert r.status_code == 401
+
+
+def test_ws_auth_rejection_without_token():
+    client = TestClient(app)
+    with pytest.raises(Exception):
+        with client.websocket_connect("/ws/nope") as ws:
+            ws.receive_json()
+
+
 def test_ws_unknown_engagement_reports_error(client):
-    with client.websocket_connect("/ws/nope") as ws:
+    with client.websocket_connect("/ws/nope?token=redagent-dev-key") as ws:
         assert ws.receive_json() == {"error": "unknown engagement"}
 
 
@@ -91,11 +103,22 @@ def test_ws_streams_reasoning_events(client):
     eid = client.post("/engagements", json={"target": "10.0.0.5"}).json()["id"]
 
     types: list[str] = []
-    with client.websocket_connect(f"/ws/{eid}") as ws:
+    with client.websocket_connect(f"/ws/{eid}?token=redagent-dev-key") as ws:
         try:
-            while True:  # drain every frame until the server closes the socket
+            while True:
                 types.append(ws.receive_json().get("type"))
         except Exception:
             pass
-    assert "reason" in types and "act" in types and "observe" in types
+            
+    assert "reason" in types
+    assert "act" in types
+    assert "observe" in types
     assert "status" in types
+
+
+def test_rate_limit_exceeded():
+    client = TestClient(app, headers={"X-API-Key": "redagent-dev-key"})
+    for _ in range(5):
+        client.post("/engagements", json={"target": "10.0.0.5"})
+    r = client.post("/engagements", json={"target": "10.0.0.5"})
+    assert r.status_code == 429

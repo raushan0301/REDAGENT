@@ -6,10 +6,13 @@ import { ReasoningStream, type LogLine } from "@/components/ReasoningStream";
 import { ScopePanel } from "@/components/ScopePanel";
 import { SeveritySummary } from "@/components/SeveritySummary";
 import { TargetBar } from "@/components/TargetBar";
+import { MitrePanel } from "@/components/MitrePanel";
+import { HistoryList } from "@/components/HistoryList";
 import { Button } from "@/components/ui/button";
 import {
   connectEngagement,
   downloadReport,
+  getEngagement,
   getHealth,
   getScope,
   startEngagement,
@@ -77,17 +80,35 @@ export default function App() {
     }
   }, [engagement, append]);
 
+  const onSelectHistory = useCallback(async (id: string) => {
+    setLog([]);
+    append(`Loading historical engagement ${id.slice(0, 8)}…`);
+    try {
+      const eng = await getEngagement(id);
+      setEngagement(eng);
+      wsRef.current?.close(); // close any active ws
+      append(`Historical engagement ${eng.id.slice(0, 8)} loaded.`);
+    } catch (err) {
+      append(`Failed to load history: ${(err as Error).message}`);
+    }
+  }, [append]);
+
   const findings = engagement?.findings ?? [];
   const canExport = engagement?.state === "done" && findings.length > 0;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4 p-4">
+    <div className="min-h-screen relative overflow-hidden text-foreground font-sans">
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[120px] pointer-events-none -z-10" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/5 blur-[120px] pointer-events-none -z-10" />
+      
+      <div className="mx-auto max-w-7xl space-y-6 p-4 lg:p-8 relative z-10 animate-fade-in-up">
       <TargetBar scope={scopeSummary} running={running} onLaunch={onLaunch} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <ChainViz findings={findings} />
           <SeveritySummary findings={findings} />
+          <MitrePanel findings={findings} />
           <div className="flex justify-end">
             <Button variant="outline" size="sm" disabled={!canExport} onClick={onExport}>
               <FileDown className="h-4 w-4" />
@@ -99,6 +120,7 @@ export default function App() {
         <div className="space-y-4 lg:col-span-1">
           <ScopePanel scope={scope} onChange={setScope} />
           <ReasoningStream log={log} />
+          <HistoryList onSelect={onSelectHistory} />
         </div>
       </div>
 
@@ -107,6 +129,7 @@ export default function App() {
           Engagement {engagement.id} · target {engagement.target} · {engagement.state}
         </p>
       )}
+      </div>
     </div>
   );
 }

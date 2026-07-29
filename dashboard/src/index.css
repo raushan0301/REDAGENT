@@ -4,20 +4,20 @@
 
 @layer base {
   :root {
-    --background: 222 47% 11%;
+    --background: 240 20% 4%;
     --foreground: 210 40% 98%;
-    --card: 222 44% 14%;
+    --card: 240 22% 10%;
     --card-foreground: 210 40% 98%;
-    --primary: 0 72% 51%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217 33% 20%;
+    --primary: 348 83% 47%; /* Crimson / Cyber Red */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 20% 16%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 20%;
+    --muted: 240 20% 16%;
     --muted-foreground: 215 20% 65%;
-    --border: 217 33% 24%;
-    --input: 217 33% 24%;
-    --ring: 0 72% 51%;
-    --radius: 0.6rem;
+    --border: 240 20% 20%;
+    --input: 240 20% 20%;
+    --ring: 348 83% 47%;
+    --radius: 0.75rem;
   }
 
   * {
@@ -27,7 +27,36 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+    background-image: 
+      radial-gradient(circle at 15% 50%, rgba(220, 38, 38, 0.04), transparent 25%),
+      radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.04), transparent 25%);
+    background-attachment: fixed;
   }
+}
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
+  }
+  .glass-panel {
+    @apply bg-card/60 backdrop-blur-xl border border-white/5 shadow-2xl;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
 }

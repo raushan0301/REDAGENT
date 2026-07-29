@@ -114,7 +114,7 @@ def build_report_context(session_id: str, target: str, findings: list[Finding],
         "risk": risk_rating(findings),
         "counts": summarize_severities(findings),
         "total": len(findings),
-        "findings": rank_findings(findings),
+        "findings": [{"title": f.title, "cve": f.cve, "cvss": f.cvss, "tool": f.tool, "severity": severity_of(f)} for f in rank_findings(findings)],
         "mitre": mitre_map(findings),
         "summary": narrative.get("summary", ""),
         "remediation": narrative.get("remediation", ""),
@@ -122,66 +122,23 @@ def build_report_context(session_id: str, target: str, findings: list[Finding],
 
 
 def render_pdf(context: dict, out_path: str) -> str:
-    """Render the report context to a PDF at out_path (reportlab)."""
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.platypus import (Paragraph, SimpleDocTemplate, Spacer,
-                                    Table, TableStyle)
+    """Render the report context to a PDF at out_path using Jinja2 and xhtml2pdf."""
+    import os
+    from jinja2 import Environment, FileSystemLoader
+    from xhtml2pdf import pisa
 
-    styles = getSampleStyleSheet()
-    story = []
-
-    story.append(Paragraph("RedAgent — Penetration Test Report", styles["Title"]))
-    story.append(Paragraph(
-        f"Target: {context['target']} &nbsp;|&nbsp; Session: {context['session_id']} "
-        f"&nbsp;|&nbsp; Generated: {context['generated_at']}", styles["Normal"]))
-    story.append(Paragraph(f"Overall risk rating: <b>{context['risk']}</b>", styles["Heading2"]))
-    story.append(Spacer(1, 10))
-
-    # Severity summary table
-    counts = context["counts"]
-    sev_rows = [["Severity", "Count"]] + [[s, str(counts[s])] for s in counts]
-    sev_table = Table(sev_rows, colWidths=[200, 80])
-    sev_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1A1A2E")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-    ]))
-    story.append(sev_table)
-    story.append(Spacer(1, 12))
-
-    story.append(Paragraph("Executive Summary", styles["Heading2"]))
-    story.append(Paragraph(context["summary"] or "(none)", styles["Normal"]))
-    story.append(Spacer(1, 12))
-
-    # Findings table
-    story.append(Paragraph("Findings", styles["Heading2"]))
-    rows = [["Severity", "Title", "CVE", "CVSS", "Tool"]]
-    for f in context["findings"]:
-        rows.append([severity_of(f) or "Info", f.title, f.cve or "-",
-                     "" if f.cvss is None else str(f.cvss), f.tool])
-    findings_table = Table(rows, colWidths=[60, 230, 90, 45, 60])
-    findings_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1A1A2E")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-    ]))
-    story.append(findings_table)
-    story.append(Spacer(1, 12))
-
-    if context["mitre"]:
-        story.append(Paragraph("MITRE ATT&CK Techniques", styles["Heading2"]))
-        for t in context["mitre"]:
-            story.append(Paragraph(f"{t['id']} — {t['name']}", styles["Normal"]))
-        story.append(Spacer(1, 12))
-
-    story.append(Paragraph("Remediation", styles["Heading2"]))
-    story.append(Paragraph((context["remediation"] or "(none)").replace("\n", "<br/>"),
-                           styles["Normal"]))
-
-    SimpleDocTemplate(out_path, pagesize=letter).build(story)
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template("report.html.j2")
+    
+    html_out = template.render(context)
+    
+    with open(out_path, "wb") as pdf_file:
+        pisa_status = pisa.CreatePDF(html_out, dest=pdf_file)
+        
+    if pisa_status.err:
+        raise RuntimeError(f"PDF generation failed with errors: {pisa_status.err}")
+        
     return out_path
 
 

@@ -24,9 +24,28 @@ export interface Engagement {
   error?: string | null;
 }
 
+export interface EngagementSummary {
+  id: string;
+  target: string;
+  last_updated: string;
+  num_findings: number;
+}
+
+export interface EngagementList {
+  engagements: EngagementSummary[];
+}
+
 export interface Health {
   status: string;
   scope: string;
+}
+
+const API_KEY = import.meta.env.VITE_API_KEY || "redagent-dev-key";
+
+async function fetchApi(path: string, options: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(options.headers || {});
+  headers.set("X-API-Key", API_KEY);
+  return fetch(path, { ...options, headers });
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -38,11 +57,11 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export function getHealth(): Promise<Health> {
-  return fetch("/health").then(json<Health>);
+  return fetchApi("/health").then(json<Health>);
 }
 
 export function startEngagement(target: string, allowDestructive = false): Promise<Engagement> {
-  return fetch("/engagements", {
+  return fetchApi("/engagements", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ target, allow_destructive: allowDestructive }),
@@ -50,7 +69,11 @@ export function startEngagement(target: string, allowDestructive = false): Promi
 }
 
 export function getEngagement(id: string): Promise<Engagement> {
-  return fetch(`/engagements/${id}`).then(json<Engagement>);
+  return fetchApi(`/engagements/${id}`).then(json<Engagement>);
+}
+
+export function getHistory(): Promise<EngagementList> {
+  return fetchApi("/engagements").then(json<EngagementList>);
 }
 
 export interface ScopeList {
@@ -58,11 +81,11 @@ export interface ScopeList {
 }
 
 export function getScope(): Promise<ScopeList> {
-  return fetch("/scope").then(json<ScopeList>);
+  return fetchApi("/scope").then(json<ScopeList>);
 }
 
 export function addScope(entry: string): Promise<ScopeList> {
-  return fetch("/scope", {
+  return fetchApi("/scope", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ entry }),
@@ -70,7 +93,7 @@ export function addScope(entry: string): Promise<ScopeList> {
 }
 
 export function removeScope(entry: string): Promise<ScopeList> {
-  return fetch("/scope", {
+  return fetchApi("/scope", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ entry }),
@@ -79,7 +102,7 @@ export function removeScope(entry: string): Promise<ScopeList> {
 
 /** POST the report endpoint and trigger a browser download of the PDF. */
 export async function downloadReport(id: string): Promise<void> {
-  const res = await fetch(`/engagements/${id}/report`, { method: "POST" });
+  const res = await fetchApi(`/engagements/${id}/report`, { method: "POST" });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error((body as { detail?: string }).detail ?? `HTTP ${res.status}`);
@@ -101,7 +124,7 @@ export type WsFrame = StatusFrame | EventFrame;
  * Returns the socket so callers can close it on unmount. */
 export function connectEngagement(id: string, onFrame: (f: WsFrame) => void): WebSocket {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const ws = new WebSocket(`${proto}//${location.host}/ws/${id}`);
+  const ws = new WebSocket(`${proto}//${location.host}/ws/${id}?token=${API_KEY}`);
   ws.onmessage = (evt) => {
     try {
       const data = JSON.parse(evt.data) as Partial<WsFrame>;

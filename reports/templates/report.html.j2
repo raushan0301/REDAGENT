@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>RedAgent Penetration Test Report</title>
+    <style>
+        @page {
+            size: a4 portrait;
+            margin: 2cm;
+            @frame footer {
+                -pdf-frame-content: footerContent;
+                bottom: 1cm;
+                margin-left: 2cm;
+                margin-right: 2cm;
+                height: 1cm;
+            }
+        }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            color: #333333;
+            font-size: 10pt;
+            line-height: 1.5;
+        }
+        h1, h2, h3 {
+            color: #1A1A2E;
+        }
+        h1 { font-size: 24pt; margin-bottom: 0; padding-bottom: 0; }
+        h2 { font-size: 16pt; margin-top: 20pt; border-bottom: 1px solid #DDDDDD; padding-bottom: 4pt; }
+        .subtitle {
+            font-size: 12pt;
+            color: #666666;
+            margin-top: 5pt;
+            margin-bottom: 20pt;
+        }
+        .header-box {
+            background-color: #F8F9FA;
+            border-left: 4px solid #E63946;
+            padding: 10pt;
+            margin-bottom: 20pt;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10pt;
+            margin-bottom: 10pt;
+        }
+        th, td {
+            border: 1px solid #DDDDDD;
+            padding: 6pt;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #1A1A2E;
+            color: #FFFFFF;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #F8F9FA;
+        }
+        .sev-Critical { color: #D32F2F; font-weight: bold; }
+        .sev-High { color: #F57C00; font-weight: bold; }
+        .sev-Medium { color: #FBC02D; font-weight: bold; }
+        .sev-Low { color: #1976D2; font-weight: bold; }
+        .sev-Info { color: #757575; font-weight: normal; }
+    </style>
+</head>
+<body>
+
+    <div id="footerContent" style="text-align: right; font-size: 8pt; color: #999;">
+        RedAgent Automated Report - Page <pdf:pagenumber>
+    </div>
+
+    <h1>RedAgent</h1>
+    <div class="subtitle">Penetration Test Report</div>
+
+    <div class="header-box">
+        <strong>Target:</strong> {{ target }}<br>
+        <strong>Session ID:</strong> {{ session_id }}<br>
+        <strong>Generated At:</strong> {{ generated_at }}<br>
+        <strong>Overall Risk Rating:</strong> <span class="sev-{{ risk }}">{{ risk }}</span>
+    </div>
+
+    <h2>Executive Summary</h2>
+    <p>{{ summary }}</p>
+
+    <h2>Severity Breakdown</h2>
+    <table>
+        <tr>
+            <th style="width: 70%">Severity</th>
+            <th style="width: 30%">Count</th>
+        </tr>
+        {% for sev, count in counts.items() %}
+        <tr>
+            <td><strong>{{ sev }}</strong></td>
+            <td>{{ count }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Findings</h2>
+    <table>
+        <tr>
+            <th style="width: 15%">Severity</th>
+            <th style="width: 45%">Title</th>
+            <th style="width: 15%">CVE / CVSS</th>
+            <th style="width: 25%">Tool</th>
+        </tr>
+        {% for f in findings %}
+        <tr>
+            <td class="sev-{{ f.severity or 'Info' }}">{{ f.severity or 'Info' }}</td>
+            <td>{{ f.title }}</td>
+            <td>
+                {{ f.cve or '-' }}<br>
+                {% if f.cvss %}(CVSS: {{ f.cvss }}){% endif %}
+            </td>
+            <td>{{ f.tool }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="4" style="text-align: center">No findings to report.</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    {% if mitre %}
+    <h2>MITRE ATT&CK Techniques</h2>
+    <ul>
+        {% for t in mitre %}
+        <li><strong>{{ t.id }}</strong> - {{ t.name }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <h2>Remediation Recommendations</h2>
+    <p>{{ remediation.replace('\n', '<br>') | safe }}</p>
+
+</body>
+</html>

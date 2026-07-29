@@ -81,13 +81,28 @@ class FindingStore:
         cur.execute(sql, (session_id,))
         return [Finding.model_validate_json(row[0]) for row in cur.fetchall()]
 
+    def list_sessions(self) -> list[dict]:
+        """Return a summary of all past engagements that have findings."""
+        sql = (
+            "SELECT session_id, target, MAX(created_at) as last_updated, COUNT(*) "
+            "FROM findings "
+            "GROUP BY session_id, target "
+            "ORDER BY last_updated DESC LIMIT 50"
+        )
+        cur = self.conn.cursor()
+        cur.execute(sql)
+        return [
+            {"id": row[0], "target": row[1], "last_updated": row[2], "num_findings": row[3]}
+            for row in cur.fetchall()
+        ]
+
 
 def get_connection():
     """Return a live PostgreSQL connection (psycopg). Creds from DATABASE_URL env."""
     import os
     import psycopg  # pip install "psycopg[binary]"
 
-    url = os.environ.get("DATABASE_URL", "postgresql://redagent:redagent@localhost:5432/redagent")
+    url = os.environ.get("DATABASE_URL", "postgresql://redagent:redagent@localhost:5433/redagent")
     return psycopg.connect(url)
 
 

@@ -146,3 +146,36 @@ def test_unsupported_check_verdict_does_not_block_opted_in_exploit():
                                       "run_exploit": True})
     assert mod.executed is True
     assert any(f.phase == "post-exploit" for f in findings)
+
+
+def test_xmlrpc_unreachable_returns_tool_unavailable_finding():
+    """XMLRPC down -> graceful Finding, not a raised exception."""
+    def _fail():
+        raise ConnectionRefusedError("Connection refused")
+
+    metasploit_tool._client = None
+    original = metasploit_tool.default_client
+    metasploit_tool.default_client = _fail
+    try:
+        findings = metasploit_run.invoke({"target": "10.0.0.5",
+                                          "module": "exploit/unix/ftp/vsftpd_234_backdoor"})
+    finally:
+        metasploit_tool.default_client = original
+        metasploit_tool._client = None
+
+    assert len(findings) == 1
+    assert findings[0].title == "Tool unavailable"
+    assert "unreachable" in findings[0].detail.lower()
+
+
+def test_mid_call_rpc_failure_returns_tool_unavailable_finding():
+    """RPC drops after connect -> graceful Finding, not a raised exception."""
+    class _BrokenClient:
+        def use_exploit(self, name):
+            raise RuntimeError("RPC session expired")
+
+    set_client(_BrokenClient())
+    findings = metasploit_run.invoke({"target": "10.0.0.5", "module": "m"})
+    assert len(findings) == 1
+    assert findings[0].title == "Tool unavailable"
+    assert "RPC error" in findings[0].detail

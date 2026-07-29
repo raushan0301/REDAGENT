@@ -30,3 +30,14 @@ class EngagementStatus(BaseModel):
     state: str                        # queued | running | done | error
     findings: list[Finding] = []
     error: str | None = None
+
+
+class EngagementSummary(BaseModel):
+    id: str
+    target: str
+    last_updated: str
+    num_findings: int
+
+
+class EngagementList(BaseModel):
+    engagements: list[EngagementSummary]
