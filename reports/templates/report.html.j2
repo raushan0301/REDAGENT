@@ -43,6 +43,8 @@
             border-collapse: collapse;
             margin-top: 10pt;
             margin-bottom: 10pt;
+            word-wrap: break-word;
+            table-layout: fixed;
         }
         th, td {
             border: 1px solid #DDDDDD;
@@ -101,24 +103,23 @@
     <h2>Findings</h2>
     <table>
         <tr>
-            <th style="width: 15%">Severity</th>
-            <th style="width: 45%">Title</th>
-            <th style="width: 15%">CVE / CVSS</th>
-            <th style="width: 25%">Tool</th>
+            <th style="width: 12%">Severity</th>
+            <th style="width: 40%">Title</th>
+            <th style="width: 14%">CVE</th>
+            <th style="width: 10%">CVSS</th>
+            <th style="width: 24%">Tool</th>
         </tr>
         {% for f in findings %}
         <tr>
             <td class="sev-{{ f.severity or 'Info' }}">{{ f.severity or 'Info' }}</td>
             <td>{{ f.title }}</td>
-            <td>
-                {{ f.cve or '-' }}<br>
-                {% if f.cvss %}(CVSS: {{ f.cvss }}){% endif %}
-            </td>
-            <td>{{ f.tool }}</td>
+            <td style="font-size: 8pt; word-break: break-all;">{{ f.cve or '-' }}</td>
+            <td style="text-align: center;">{% if f.cvss %}{{ f.cvss }}{% else %}-{% endif %}</td>
+            <td style="font-size: 8pt;">{{ f.tool }}</td>
         </tr>
         {% else %}
         <tr>
-            <td colspan="4" style="text-align: center">No findings to report.</td>
+            <td colspan="5" style="text-align: center">No findings to report.</td>
         </tr>
         {% endfor %}
     </table>

@@ -18,7 +18,7 @@ from agent.tools.schema import Finding
 
 TOOL_NAME = "nmap"
 PHASE = "recon"
-TIMEOUT_S = 300
+TIMEOUT_S = 90
 
 
 def _run(args: list[str]) -> str:
@@ -76,7 +76,7 @@ def nmap_scan(target: str) -> list[Finding]:
             )
         ]
     try:
-        raw = _run(["nmap", "-sV", "-oX", "-", target])
+        raw = _run(["nmap", "-sV", "-T4", "-Pn", "--top-ports", "200", "-oX", "-", target])
     except EXEC_ERRORS as exc:
         return [exec_error_finding(TOOL_NAME, PHASE, target, exc)]
     findings = _parse(target, raw)

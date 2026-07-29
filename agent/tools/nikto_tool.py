@@ -27,7 +27,7 @@ from agent.tools.schema import Finding
 
 TOOL_NAME = "nikto"
 PHASE = "scanning"
-TIMEOUT_S = 600
+TIMEOUT_S = 90
 
 # Nikto CSV header (as emitted by `nikto -Format csv`):
 # "Nikto version","host","ip","port","osvdb","method","path","description"
@@ -65,7 +65,11 @@ def _classify_severity(description: str) -> str:
 def _run(target: str, port: int) -> str:
     """Run nikto against target:port, returning full CSV stdout+stderr."""
     proc = subprocess.run(
-        ["nikto", "-h", target, "-p", str(port), "-Format", "csv", "-nointeractive"],
+        [
+            "nikto", "-h", target, "-p", str(port),
+            "-Format", "csv", "-nointeractive",
+            "-maxtime", "45",   # hard cap: stop after 45 seconds regardless
+        ],
         capture_output=True,
         text=True,
         timeout=TIMEOUT_S,

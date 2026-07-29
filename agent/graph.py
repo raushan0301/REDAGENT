@@ -85,11 +85,42 @@ def build_graph(
             SystemMessage(SYSTEM_PROMPT),
             HumanMessage(f"Target: {state['target']}\nCurrent state:\n{summary}"),
         ]
-        try:
-            ai: AIMessage = model.invoke(prompt)
-        except Exception as exc:  # noqa: BLE001 - a flaky LLM call must not crash the engagement
-            emit({"type": "error", "step": step, "text": f"Reasoning failed, ending: {exc}"})
-            return {"pending": AIMessage(content="")}  # no tool_calls -> route() treats as DONE
+
+        # --- Attempt 1: normal invoke ---
+        ai = None
+        for attempt in range(2):   # up to 2 tries before giving up on this step
+            try:
+                ai = model.invoke(prompt)
+                break  # success — exit retry loop
+            except Exception as exc:  # noqa: BLE001
+                exc_str = str(exc)
+                is_tool_format_error = (
+                    "tool_use_failed" in exc_str
+                    or "Failed to call a function" in exc_str
+                    or "invalid_request_error" in exc_str
+                )
+                if is_tool_format_error and attempt == 0:
+                    # Groq rejected the generated function call — retry once with a
+                    # simpler recovery prompt that steers away from the bad tool.
+                    emit({"type": "reason", "step": step,
+                          "text": "Tool-call format error from LLM, retrying with recovery prompt…"})
+                    prompt = [
+                        SystemMessage(SYSTEM_PROMPT),
+                        HumanMessage(
+                            f"Target: {state['target']}\nCurrent state:\n{summary}\n\n"
+                            "IMPORTANT: On your previous step the tool call was malformed. "
+                            "Please choose a DIFFERENT tool or reply DONE if no other "
+                            "useful action remains. Prefer nmap_scan or search_cve_database."
+                        ),
+                    ]
+                    time.sleep(2)  # brief back-off before retry
+                else:
+                    # Non-recoverable or already retried — skip this step gracefully.
+                    emit({"type": "error", "step": step,
+                          "text": f"Reasoning failed (attempt {attempt + 1}), skipping step: {exc}"})
+                    return {"pending": AIMessage(content=""),
+                            "step": step + 1}  # advance step counter so MAX_STEPS still applies
+
         if getattr(ai, "tool_calls", None):
             call = ai.tool_calls[0]
             emit({"type": "reason", "step": step,
@@ -119,7 +150,7 @@ def build_graph(
             return END
         ai = state.get("pending")
         if not ai or not getattr(ai, "tool_calls", None):
-            return END  # agent said DONE
+            return END  # agent said DONE or step was skipped due to repeated errors
         call = ai.tool_calls[0]
         key = _action_key(call["name"], call.get("args", {}))
         if key in state.get("seen_actions", set()):

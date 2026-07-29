@@ -19,7 +19,7 @@ from agent.tools.schema import Finding, severity_from_cvss
 
 TOOL_NAME = "nuclei"
 PHASE = "scanning"
-TIMEOUT_S = 600
+TIMEOUT_S = 90
 
 # Nuclei severity string -> schema band.
 _SEV_MAP = {
@@ -34,7 +34,14 @@ _SEV_MAP = {
 
 def _run(target: str) -> str:
     proc = subprocess.run(
-        ["nuclei", "-u", target, "-jsonl", "-silent"],
+        [
+            "nuclei", "-u", target,
+            "-jsonl", "-silent",
+            "-severity", "critical,high,medium",  # skip low/info — too slow, too noisy
+            "-timeout", "10",                      # per-request timeout in seconds
+            "-c", "20",                            # max 20 concurrent requests
+            "-rl", "50",                           # rate-limit: 50 req/s
+        ],
         capture_output=True,
         text=True,
         timeout=TIMEOUT_S,
