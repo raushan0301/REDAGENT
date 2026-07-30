@@ -18,7 +18,7 @@ from agent.tools.schema import Finding
 
 TOOL_NAME = "nmap"
 PHASE = "recon"
-TIMEOUT_S = 90
+TIMEOUT_S = 300
 
 
 def _run(args: list[str]) -> str:

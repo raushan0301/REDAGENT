@@ -24,12 +24,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from dotenv import load_dotenv
 load_dotenv()
 
-import os
 from fastapi import FastAPI, HTTPException, Request, WebSocket, Depends, Security
 from fastapi.responses import FileResponse
 from fastapi.security import APIKeyHeader
@@ -38,12 +38,30 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from agent.graph import run_engagement
-from agent.scope import add_scope, in_scope, list_scope, remove_scope, scope_summary
+from agent.scope import (
+    add_scope, in_scope, list_scope, remove_scope, scope_summary,
+    add_public_scope, list_public_scope, remove_public_scope,
+)
 from api.models import EngagementList, EngagementRequest, EngagementStatus, ScopeEntry, ScopeList
 
 log = logging.getLogger("redagent.api")
 
-app = FastAPI(title="RedAgent", version="0.1.0")
+
+# ── Lifespan (replaces deprecated @app.on_event) ─────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Connect to PostgreSQL on startup; yield; nothing to tear down."""
+    try:
+        from api.db import get_store
+        app.state.db = await asyncio.to_thread(get_store)
+        log.info("[DB] PostgreSQL connected — findings will be persisted.")
+    except Exception as exc:  # noqa: BLE001
+        log.warning("[DB] PostgreSQL unavailable (%s) — running in-memory only.", exc)
+    yield
+
+
+app = FastAPI(title="RedAgent", version="0.1.0", lifespan=lifespan)
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
@@ -52,10 +70,12 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 API_KEY = os.environ.get("REDAGENT_API_KEY", "redagent-dev-key")
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=True)
 
+
 def verify_api_key(api_key: str = Security(api_key_header)):
     if api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     return api_key
+
 
 # Default engagement runner; overridable in tests via app.state.runner.
 app.state.runner = run_engagement
@@ -69,18 +89,6 @@ REPORT_DIR = "reports/out"
 # In-memory engagement registry — live session cache (survives for the process
 # lifetime). PostgreSQL is the durable store; this is the hot path.
 ENGAGEMENTS: dict[str, dict] = {}
-
-
-@app.on_event("startup")
-async def _connect_db() -> None:
-    """Try to connect to PostgreSQL and create schema. Fail gracefully — the
-    server runs without persistence if the DB is unavailable (dev / CI mode)."""
-    try:
-        from api.db import get_store
-        app.state.db = await asyncio.to_thread(get_store)
-        log.info("[DB] PostgreSQL connected — findings will be persisted.")
-    except Exception as exc:  # noqa: BLE001
-        log.warning("[DB] PostgreSQL unavailable (%s) — running in-memory only.", exc)
 
 
 def _status(eng: dict) -> EngagementStatus:
@@ -139,11 +147,15 @@ async def _run(eng: dict, runner) -> None:
         _emit(eng, {"type": "end"})  # already on the loop thread here
 
 
+# ── Health ────────────────────────────────────────────────────────────────────
+
 @app.get("/health", dependencies=[Depends(verify_api_key)])
 @limiter.limit("60/minute")
 def health(request: Request) -> dict:
     return {"status": "ok", "scope": scope_summary()}
 
+
+# ── Engagements ───────────────────────────────────────────────────────────────
 
 @app.post("/engagements", response_model=EngagementStatus, dependencies=[Depends(verify_api_key)])
 @limiter.limit("5/minute")
@@ -196,6 +208,40 @@ async def get_engagement(engagement_id: str, request: Request) -> EngagementStat
     return _status(eng)
 
 
+# ── Scope — Authorized Public (must be registered BEFORE /scope to avoid
+#    FastAPI path shadowing: /scope/public would be shadowed by /scope/{...}) ──
+
+@app.get("/scope/public", response_model=ScopeList, dependencies=[Depends(verify_api_key)])
+@limiter.limit("60/minute")
+def get_public_scope(request: Request) -> ScopeList:
+    """List all authorized-public scope entries (env + runtime)."""
+    return ScopeList(scope=list_public_scope())
+
+
+@app.post("/scope/public", response_model=ScopeList, dependencies=[Depends(verify_api_key)])
+@limiter.limit("5/minute")
+def add_public_scope_entry(body: ScopeEntry, request: Request) -> ScopeList:
+    """Add a public IP/CIDR/hostname you own to the authorized-public allowlist.
+    The operator asserts they are authorized to test this target."""
+    if not add_public_scope(body.entry):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid scope entry (unresolvable IP/CIDR/hostname): {body.entry!r}",
+        )
+    return ScopeList(scope=list_public_scope())
+
+
+@app.delete("/scope/public", response_model=ScopeList, dependencies=[Depends(verify_api_key)])
+@limiter.limit("5/minute")
+def delete_public_scope_entry(body: ScopeEntry, request: Request) -> ScopeList:
+    """Remove a runtime authorized-public scope entry."""
+    if not remove_public_scope(body.entry):
+        raise HTTPException(status_code=404, detail=f"Public scope entry not found: {body.entry!r}")
+    return ScopeList(scope=list_public_scope())
+
+
+# ── Scope — Lab (private / loopback only) ─────────────────────────────────────
+
 @app.get("/scope", response_model=ScopeList, dependencies=[Depends(verify_api_key)])
 @limiter.limit("60/minute")
 def get_scope(request: Request) -> ScopeList:
@@ -220,13 +266,15 @@ def delete_scope_entry(body: ScopeEntry, request: Request) -> ScopeList:
     return ScopeList(scope=list_scope())
 
 
+# ── Report export ─────────────────────────────────────────────────────────────
+
 @app.post("/engagements/{engagement_id}/report", dependencies=[Depends(verify_api_key)])
 @limiter.limit("5/minute")
 async def export_report(engagement_id: str, request: Request):
     eng = ENGAGEMENTS.get(engagement_id)
     findings = None
     target = None
-    
+
     if eng is not None:
         findings = eng.get("findings", [])
         target = eng.get("target")
@@ -243,7 +291,7 @@ async def export_report(engagement_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Unknown engagement.")
     if not findings:
         raise HTTPException(status_code=400, detail="No findings to report yet.")
-        
+
     from reports.generator import generate_report
 
     os.makedirs(REPORT_DIR, exist_ok=True)
@@ -257,8 +305,10 @@ async def export_report(engagement_id: str, request: Request):
                         filename=f"redagent-{engagement_id}.pdf")
 
 
+# ── WebSocket ─────────────────────────────────────────────────────────────────
+
 @app.websocket("/ws/{engagement_id}")
-async def engagement_ws(websocket: WebSocket, engagement_id: str, token: str = None) -> None:
+async def engagement_ws(websocket: WebSocket, engagement_id: str, token: str | None = None) -> None:
     await websocket.accept()
     if token != API_KEY:
         await websocket.close(code=1008, reason="Unauthorized")

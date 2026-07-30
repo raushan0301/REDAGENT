@@ -19,7 +19,7 @@ from agent.tools.schema import Finding, severity_from_cvss
 
 TOOL_NAME = "nuclei"
 PHASE = "scanning"
-TIMEOUT_S = 90
+TIMEOUT_S = 900
 
 # Nuclei severity string -> schema band.
 _SEV_MAP = {

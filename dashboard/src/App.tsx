@@ -14,7 +14,6 @@ import {
   downloadReport,
   getEngagement,
   getHealth,
-  getScope,
   startEngagement,
   type Engagement,
 } from "@/lib/api";
@@ -25,14 +24,12 @@ function now(): string {
 
 export default function App() {
   const [scopeSummary, setScopeSummary] = useState("");
-  const [scope, setScope] = useState<string[]>([]);
   const [engagement, setEngagement] = useState<Engagement | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     getHealth().then((h) => setScopeSummary(h.scope)).catch(() => setScopeSummary("backend offline"));
-    getScope().then((s) => setScope(s.scope)).catch(() => setScope([]));
     return () => wsRef.current?.close();
   }, []);
 
@@ -118,7 +115,7 @@ export default function App() {
           <FindingsFeed findings={findings} />
         </div>
         <div className="space-y-4 lg:col-span-1">
-          <ScopePanel scope={scope} onChange={setScope} />
+          <ScopePanel />
           <ReasoningStream log={log} />
           <HistoryList onSelect={onSelectHistory} />
         </div>

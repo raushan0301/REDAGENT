@@ -100,6 +100,26 @@ export function removeScope(entry: string): Promise<ScopeList> {
   }).then(json<ScopeList>);
 }
 
+export function getPublicScope(): Promise<ScopeList> {
+  return fetchApi("/scope/public").then(json<ScopeList>);
+}
+
+export function addPublicScope(entry: string): Promise<ScopeList> {
+  return fetchApi("/scope/public", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entry }),
+  }).then(json<ScopeList>);
+}
+
+export function removePublicScope(entry: string): Promise<ScopeList> {
+  return fetchApi("/scope/public", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ entry }),
+  }).then(json<ScopeList>);
+}
+
 /** POST the report endpoint and trigger a browser download of the PDF. */
 export async function downloadReport(id: string): Promise<void> {
   const res = await fetchApi(`/engagements/${id}/report`, { method: "POST" });
