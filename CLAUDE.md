@@ -17,9 +17,17 @@ you write and flag any request that would violate them.
 - **Scope gate is mandatory.** The agent NEVER runs a tool against a target that
   is not in the operator-defined scope list. Every tool wrapper must check the
   target against the scope allowlist before executing. No scope entry → no run.
-- **Lab-only.** Valid targets are VulnHub machines, Metasploitable, and DVWA
-  running inside the isolated AWS VPC private subnet. No public internet targets,
-  ever, in code or defaults.
+- **Lab-only by default.** Valid default targets are VulnHub machines,
+  Metasploitable, and DVWA running inside the isolated AWS VPC private subnet.
+  No public internet targets in code defaults, ever.
+- **Authorized public scope is a deliberate, separate opt-in.** `REDAGENT_PUBLIC_SCOPE`
+  / `add_public_scope()` lets an operator explicitly declare public IPs/hostnames
+  they own and are authorized to test (`agent/scope.py`). It never mixes with lab
+  scope, is checked as its own allowlist, and rejects RFC 1918/loopback entries
+  (those belong in lab scope). This is intentional, reviewed architecture — do
+  not treat its existence as a violation of "lab-only by default" above; that
+  rule is about defaults, not about permanently forbidding authorized public
+  testing.
 - **No destructive defaults.** SQLMap and Metasploit wrappers default to
   detection / safe mode. Destructive flags require an explicit operator opt-in
   passed through the API, never hardcoded.
