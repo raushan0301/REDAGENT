@@ -33,3 +33,18 @@ def scoped_env(monkeypatch):
     import agent.scope as scope
     importlib.reload(scope)
     yield scope
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """slowapi's limiter storage is global/in-memory and persists across the
+    whole pytest session, so tests hammering rate-limited endpoints (e.g.
+    /scope at 5/min) can 429 depending on run order across files. Reset before
+    every test so each one gets a fresh window, keeping the suite order-
+    independent. Skipped harmlessly if api.main hasn't been imported yet."""
+    try:
+        from api.main import app
+        app.state.limiter.reset()
+    except ImportError:
+        pass
+    yield

@@ -26,13 +26,16 @@ class FakeLLM:
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.delenv("REDAGENT_SCOPE", raising=False)
+    monkeypatch.delenv("REDAGENT_PUBLIC_SCOPE", raising=False)
     scope._RUNTIME_SCOPE.clear()
+    scope._RUNTIME_PUBLIC_SCOPE.clear()
     app.state.runner = _fake_runner
     app.state.report_llm = FakeLLM()
     ENGAGEMENTS.clear()
-    with TestClient(app) as c:
+    with TestClient(app, headers={"X-API-Key": "redagent-dev-key"}) as c:
         yield c
     scope._RUNTIME_SCOPE.clear()
+    scope._RUNTIME_PUBLIC_SCOPE.clear()
 
 
 # --- scope management ------------------------------------------------------
@@ -66,6 +69,38 @@ def test_remove_scope_entry(client):
     assert client.request("DELETE", "/scope", json={"entry": "10.0.0.0/24"}).status_code == 404
 
 
+# --- authorized public scope -------------------------------------------------
+
+def test_public_scope_starts_empty(client):
+    assert client.get("/scope/public").json()["scope"] == []
+
+
+def test_add_public_scope_entry(client):
+    r = client.post("/scope/public", json={"entry": "93.184.216.34/32"})
+    assert r.status_code == 200
+    assert "93.184.216.34/32" in r.json()["scope"]
+
+
+def test_add_public_scope_rejects_private_entry(client):
+    r = client.post("/scope/public", json={"entry": "10.0.0.0/24"})
+    assert r.status_code == 400
+
+
+def test_remove_public_scope_entry(client):
+    client.post("/scope/public", json={"entry": "93.184.216.34/32"})
+    r = client.request("DELETE", "/scope/public", json={"entry": "93.184.216.34/32"})
+    assert r.status_code == 200
+    assert r.json()["scope"] == []
+    assert client.request("DELETE", "/scope/public", json={"entry": "93.184.216.34/32"}).status_code == 404
+
+
+def test_public_and_lab_scope_are_independent(client):
+    client.post("/scope/public", json={"entry": "93.184.216.34/32"})
+    client.post("/scope", json={"entry": "10.0.0.0/24"})
+    assert client.get("/scope/public").json()["scope"] == ["93.184.216.34/32"]
+    assert client.get("/scope").json()["scope"] == ["10.0.0.0/24"]
+
+
 # --- report export ---------------------------------------------------------
 
 def test_report_404_for_unknown_engagement(client):
@@ -75,10 +110,10 @@ def test_report_404_for_unknown_engagement(client):
 def test_report_exports_pdf_for_completed_engagement(client):
     client.post("/scope", json={"entry": "10.0.0.0/24"})
     eid = client.post("/engagements", json={"target": "10.0.0.5"}).json()["id"]
-    # drain the WS so the background engagement completes
-    with client.websocket_connect(f"/ws/{eid}") as ws:
-        msg = ws.receive_json()
-        while msg["state"] == "running":
+    # drain the WS (status + any reasoning-event frames) so the engagement completes
+    with client.websocket_connect(f"/ws/{eid}?token=redagent-dev-key") as ws:
+        msg = {"type": "status", "state": "running"}
+        while msg.get("type") != "status" or msg.get("state") == "running":
             msg = ws.receive_json()
 
     r = client.post(f"/engagements/{eid}/report")

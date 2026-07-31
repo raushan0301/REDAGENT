@@ -34,3 +34,11 @@ reports/out/
 lab/terraform/.terraform/
 *.tfstate
 *.tfstate.*
+
+# Debug/test output dumps and build logs — not deliverables
+raw_eng.json
+reloaded_eng.json
+logs/
+
+# TypeScript incremental build cache
+dashboard/*.tsbuildinfo

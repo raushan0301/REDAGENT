@@ -131,7 +131,7 @@ if __name__ == "__main__":
                    help=f"Results per NVD page (default {PAGE_SIZE}, max 2000)")
     args = p.parse_args()
 
-    key = os.environ.get("NVD_API_KEY", "b2200d97-1484-4cfd-9e86-21fc31e03183")
+    key = os.environ.get("NVD_API_KEY", "")
     if not key:
         print("WARNING: No NVD_API_KEY — unauthenticated rate limit applies.")
 
