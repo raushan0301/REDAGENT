@@ -7,7 +7,7 @@ CVSS-3.1-scored pentest reports with MITRE ATT&CK mapping.
 > ⚠️ **Lab-only.** Read [SECURITY.md](SECURITY.md) before running anything. RedAgent
 > refuses any target that is not a private lab address on the operator allowlist.
 
-## Architecture (four layers + RAG)
+## Architecture (four layers+ RAG)
 
 1. **Brain** — LangGraph ReAct loop (Reason → Act → Observe), adaptive replanning,
    short-term memory in-session + long-term findings in PostgreSQL.
